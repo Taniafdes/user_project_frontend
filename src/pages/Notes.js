@@ -1,11 +1,10 @@
-import React, { useEffect, useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { getNotes, createNote, deleteNote } from "../api/api";
 import NoteItem from "../components/NoteItem";
 import { useNavigate } from "react-router-dom";
 
 const Notes = () => {
   const navigate = useNavigate();
-  const token = localStorage.getItem("token");
 
   const [notes, setNotes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -16,92 +15,81 @@ const Notes = () => {
   const [search, setSearch] = useState("");
   const [error, setError] = useState("");
 
-  // Helper: sanitize note to ensure required fields are present
-  // Removed dangerous fallback key generation. Server must provide _id.
-  const sanitizeNote = (note) => ({
-    _id: note._id,
-    title: note.title ?? "",
-    content: note.content ?? "",
-    tags: Array.isArray(note.tags) ? note.tags : [],
-  });
-
   // Fetch notes from backend
+  const fetchNotes = useCallback(async () => {
+    const token = localStorage.getItem("token"); // read fresh
+    if (!token) {
+      navigate("/login");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const notesArray = await getNotes(token, filterTag);
+      setNotes(Array.isArray(notesArray) ? notesArray : []);
+    } catch (err) {
+      console.error(err);
+      setError("Failed to fetch notes.");
+      setNotes([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [filterTag, navigate]);
+
   useEffect(() => {
-    if (!token) return navigate("/login");
-
-    const fetchNotes = async () => {
-      try {
-        const notesArray = await getNotes(token, filterTag);
-        setNotes(Array.isArray(notesArray) ? notesArray.map(sanitizeNote) : []);
-      } catch (err) {
-        console.error(err);
-        setError("Failed to fetch notes.");
-        setNotes([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     fetchNotes();
-  }, [token, filterTag, navigate]);
+  }, [fetchNotes]);
 
   // Add a new note
   const handleAddNote = async (e) => {
-  e.preventDefault();
-  if (!title.trim()) {
-    setError("Title is required.");
-    return;
-  }
-
-  try {
-    const newNoteResponse = await createNote(token, {
-      title,
-      content,
-      tags: tag
-        ? tag.split(",").map(t => t.trim()).filter(Boolean) // ✅ convert comma-separated string to array
-        : [],
-    });
-
-    const createdNote = newNoteResponse.note;
-    if (!createdNote || !createdNote._id) throw new Error("Invalid note from server");
-
-    setNotes(prev => [sanitizeNote(createdNote), ...prev]);
-    setTitle("");
-    setContent("");
-    setTag(""); // reset input
-    setError("");
-  } catch (err) {
-    console.error(err);
-    setError("Failed to add note: " + (err.message || "Unknown error."));
-  }
-};
-
-
-  // Delete a note
-  const handleDelete = async (id) => {
-    if (!id) {
-        console.error("Attempted to delete note without an ID.");
-        setError("Cannot delete note: ID is missing.");
-        return;
+    e.preventDefault();
+    if (!title.trim()) {
+      setError("Title is required.");
+      return;
     }
-    
-    // *** IMPROVEMENT: Optimistic UI Update ***
-    // 1. Save the current state in case of failure
-    const originalNotes = notes;
-    // 2. Remove the note immediately from state for fast user feedback
-    setNotes(notes.filter((n) => n._id !== id));
-    
+
     try {
-      await deleteNote(token, id);
-      // Success: State is already updated
+      const token = localStorage.getItem("token");
+      const newNoteResponse = await createNote(token, {
+        title,
+        content,
+        tags: tag
+          ? tag.split(",").map((t) => t.trim()).filter(Boolean)
+          : [],
+      });
+
+      const createdNote = newNoteResponse.note;
+      if (!createdNote || !createdNote._id)
+        throw new Error("Invalid note from server");
+
+      setNotes((prev) => [createdNote, ...prev]);
+      setTitle("");
+      setContent("");
+      setTag("");
+      setError("");
     } catch (err) {
       console.error(err);
-      setError("Failed to delete note. Restoring notes list.");
-      // Revert the state to the original list on failure
-      setNotes(originalNotes); 
+      setError("Failed to add note: " + (err.message || "Unknown error."));
     }
   };
 
+  // Delete a note
+  const handleDelete = async (id) => {
+    if (!id) return;
+    const originalNotes = notes;
+    setNotes(notes.filter((n) => n._id !== id));
+
+    try {
+      const token = localStorage.getItem("token");
+      await deleteNote(token, id);
+    } catch (err) {
+      console.error(err);
+      setError("Failed to delete note. Restoring list.");
+      setNotes(originalNotes);
+    }
+  };
+
+  // Logout
   const handleLogout = () => {
     localStorage.removeItem("token");
     navigate("/login");
@@ -133,7 +121,10 @@ const Notes = () => {
       </div>
 
       {/* Add Note Form */}
-      <form onSubmit={handleAddNote} className="bg-white p-6 rounded shadow-md mb-6 space-y-4">
+      <form
+        onSubmit={handleAddNote}
+        className="bg-white p-6 rounded shadow-md mb-6 space-y-4"
+      >
         <input
           placeholder="Title"
           value={title}
@@ -148,7 +139,7 @@ const Notes = () => {
           className="w-full px-4 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400"
         />
         <input
-          placeholder="Tag"
+          placeholder="Tag (comma separated)"
           value={tag}
           onChange={(e) => setTag(e.target.value)}
           className="w-full px-4 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-400"
