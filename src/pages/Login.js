@@ -1,22 +1,29 @@
 import React, { useState } from "react";
-import { loginUser } from "../api/api";
+import { loginUser } from "../api/api.js";
 import { useNavigate } from "react-router-dom";
 
-const Login = () => {
+const Login = ({ setToken }) => {
   const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
   const navigate = useNavigate();
 
-  const handleChange = (e) => setForm({ ...form, [e.target.name]: e.target.value });
+  const handleChange = (e) =>
+    setForm({ ...form, [e.target.name]: e.target.value });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await loginUser(form);
-      localStorage.setItem("token", res.data.token);
+      const response = await loginUser(form);
+
+      // Store token in localStorage
+      localStorage.setItem("token", response.data.token);
+      // Update App token state
+      setToken(response.data.token);
+
+      // Navigate to Notes
       navigate("/notes");
     } catch (err) {
-      setError(err.response?.data?.error || "Login failed");
+      setError(err.response?.data?.error || "Invalid credentials");
     }
   };
 
@@ -45,7 +52,7 @@ const Login = () => {
           />
           <button
             type="submit"
-            className="w-full bg-blue-500 text-white py-2 rounded hover:bg-blue-600 transition"
+            className="w-full bg-green-500 text-white py-2 rounded hover:bg-green-600 transition"
           >
             Login
           </button>

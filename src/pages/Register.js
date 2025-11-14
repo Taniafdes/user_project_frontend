@@ -1,8 +1,8 @@
 import React, { useState } from "react";
-import { registerUser } from "../api/api";
+import { registerUser } from "../api/api.js";
 import { useNavigate } from "react-router-dom";
 
-const Register = () => {
+const Register = ({ setToken }) => {
   const [form, setForm] = useState({ name: "", email: "", password: "" });
   const [error, setError] = useState("");
   const navigate = useNavigate();
@@ -15,10 +15,12 @@ const Register = () => {
     try {
       const response = await registerUser(form);
 
-      // ✅ Store the token returned by backend
+      // Store token in localStorage
       localStorage.setItem("token", response.data.token);
+      // Update App token state
+      setToken(response.data.token);
 
-      // ✅ Redirect directly to Notes page (user is now logged in)
+      // Navigate directly to Notes
       navigate("/notes");
     } catch (err) {
       setError(err.response?.data?.error || "Something went wrong");
