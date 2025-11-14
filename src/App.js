@@ -9,10 +9,18 @@ function App() {
   return (
     <Router>
       <Routes>
+        {/* Default route */}
+        <Route path="/" element={token ? <Navigate to="/notes" replace /> : <Navigate to="/register" replace />} />
+
+        {/* Auth routes */}
         <Route path="/register" element={<Register />} />
         <Route path="/login" element={<Login />} />
-        <Route path="/notes" element={token ? <Notes /> : <Navigate to="/login" />} />
-        <Route path="*" element={<Navigate to="/notes" />} />
+
+        {/* Protected route */}
+        <Route path="/notes" element={token ? <Notes /> : <Navigate to="/login" replace />} />
+
+        {/* Catch-all redirects */}
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
   );
